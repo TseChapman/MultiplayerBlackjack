@@ -9,6 +9,7 @@
 #include <netdb.h> // gethostbyname
 #include <unistd.h> // read, write, close
 #include <unordered_map>
+#include <sstream>
 #include <string>
 #include <strings.h> // bzero
 #include <sys/types.h> // socket, bind
@@ -16,12 +17,16 @@
 #include <sys/time.h>
 #include <sys/uio.h> // writev
 #include <vector>
+#include "Game.h"
 
 using namespace std;
 
 extern int errno;
 
 const int MAX_CON = 10;
+
+vector<Game> lobbies;
+int lobby_id = 0;
 
 struct Player {
   string player_id;
@@ -31,6 +36,7 @@ struct Player {
 };
 
 unordered_map<string, Player> players;
+int player_id;
 pthread_mutex_t players_mutex;
 
 void printDebugStatement(bool isDebug, string statement) {
@@ -70,7 +76,26 @@ struct requestData {
   vector<string> information;
 };
 
+bool isLobbyNameCreated(string lobby_name) {
+  for (int i = 0; i < lobbies.size(); i++) {
+    if (lobbies.at(i).lobby_name == lobby_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool isLobbyIDCreated(string lobby_id) {
+  for (int i = 0; i < lobbies.size(); i++) {
+    if (lobbies.at(i).lobby_id == lobby_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
 string processRequestData(const requestData& request) {
+  string response = "";
   // Determine the action
   // Map of commands
   unordered_map<string, int> command_map = {
@@ -91,46 +116,159 @@ string processRequestData(const requestData& request) {
     response = "NO\r\nAck:" + to_string(request.ack) +"\r\nPlayer ID:" + request.player_id + "\r\n\r\n";
   }
 
-  string response = "";
   switch (command) {
-    case 1:
+    case 1: {
       // Exit the game
       pthread_mutex_lock(&players_mutex);
       // Step 1: Exit lobby if any
       try {
         if (!players[request.player_id].lobby_id.empty()) {
-          // TODO: Exit lobby
+          // Exit lobby
+          if (isLobbyIDCreated(players[request.player_id].lobby_id)) {
+            for (int i = 0; i < lobbies.size(); i++) {
+              if (lobbies.at(i).lobby_id == players[request.player_id].lobby_id) {
+                int status = lobbies.at(i).exit(request.player_id);
+                if (status == 0) {
+                  // TODO: fail to exit a lobby
+                }
+                break;
+              }
+            }
+          }
         }
       } catch (...) {
 
       }
       // Step 2: deactive username
       try {
-        players.erase(request.player_id);
+        players[request.player_id].status = 0;
       } catch (...) {
 
       }
       pthread_mutex_unlock(&players_mutex);
-    case 2:
-      // Step 1: Search list of lobby
-      // Step 2: Check if non of the lobby has the same name
-      // Step 3: Add the lobby name to the list
-      // Step 4: Generate lobby id
-      // Step 5: Write to client
-    case 3:
-      // Step 1: Search for lobby with lobby_id
-      // Step 2: Check if player_id in lobby
-      // Step 3: Remove player from lobby
-      // Step 4: Reset player's lobby id
-    case 4:
+      // TODO: Write response
+    } break;
+    case 2: {
+      try {
+        pthread_mutex_lock(&players_mutex);
+        // Step 1: Search list of lobby
+        if (lobbies.empty()) {
+          // Lobbies is empty
+          string lobbyID = to_string(lobby_id);
+          Game newGame(lobbyID, request.information.at(0));
+          lobbies.push_back(newGame);
+          // Step 5: Write to client
+          response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
+          pthread_mutex_unlock(&players_mutex);
+          break;
+        }
+        // Step 2: Check if non of the lobby has the same name
+        if (!isLobbyNameCreated(request.information.at(0))) {
+          // Step 3: Add the lobby name to the list
+          // Step 4: Generate lobby id
+          string lobbyID = to_string(lobby_id);
+          Game newGame(lobbyID, request.information.at(0));
+          lobbies.push_back(newGame);
+          // Step 5: Write to client
+          response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
+          pthread_mutex_unlock(&players_mutex);
+          break;
+        } else {
+          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
+          pthread_mutex_unlock(&players_mutex);
+          break;
+        }
+      } catch (...) {
+        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
+        break;
+      }
+    }
+    case 3: {
+      pthread_mutex_lock(&players_mutex);
+      try {
+        // Step 1: Search for lobby with lobby_id
+        for (Game g : lobbies) {
+          if (g.lobby_id == request.information.at(0)) {
+            // Step 2: Check if player_id in lobby and remove player from lobby
+            g.exit(request.player_id);
+          }
+        }
+        // Step 3: Reset player's lobby id
+        players[request.player_id].lobby_id = "";
+        response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:EXIT_GAME\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+        pthread_mutex_unlock(&players_mutex);
+      } catch (...) {
+        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:EXIT_GAME\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+        pthread_mutex_unlock(&players_mutex);
+      }
+    } break;
+    case 4: {
+      pthread_mutex_lock(&players_mutex);
+      response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:LIST\r\nNumber of Lobby:" + to_string(lobbies.size()) + "\r\n";
       // Step 1: Get a list of lobby
-      // Step 2: Format response
-    case 5:
+      for (Game g : lobbies) {
+        // Step 2: Format response
+        //"OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:LIST\r\nNumber of Lobby:x\r\nLobby ID:lobby_id\r\nLobby Name:lobby_name\r\n\r\n"
+        response += "Lobby ID:" + g.lobby_id + "\r\nLobby Name:" + g.lobby_name + "\r\n";
+      }
+      response += "\r\n";
+      pthread_mutex_unlock(&players_mutex);
+    } break;
+    case 5: {
+      pthread_mutex_lock(&players_mutex);
+      //OK\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n
+      Player newPlayer;
+      bool isUserNameTaken = false;
       // Step 1: Get the list of player
-      // Step 2: Check if the username is taken
+      for (auto p : players) {
+        // Step 2: Check if the username is taken
+        if (p.second.player_id == request.player_id) {
+          isUserNameTaken = true;
+          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+          pthread_mutex_unlock(&players_mutex);
+          break;
+        }
+      }
       // Step 3: Generate player with username and new unique player id
-      // Step 4: Add the player to the list
-      // Step 5: Format response
+      if (!isUserNameTaken) {
+        newPlayer.player_id = player_id;
+        newPlayer.username = request.information.at(0);
+        newPlayer.status = 1; // Set player active
+        newPlayer.lobby_id = "";
+
+        // Step 4: Add the player to the list
+        players.insert({to_string(player_id), newPlayer});
+        // Step 5: Format response
+        response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:CREATE_USER\r\n\r\n";
+        pthread_mutex_unlock(&players_mutex);
+      }
+    } break;
+    case 6: {
+      pthread_mutex_lock(&players_mutex);
+      // Step 1: Check if the player already joined a lobby
+      if (players.at(request.player_id).lobby_id != "") {
+        // E.g. OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:JOIN\r\nLobby ID:lobby_id\r\n\r\n"
+        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+        pthread_mutex_unlock(&players_mutex);
+        break;
+      }
+      // Step 2: Get a list of lobby
+      for (Game g : lobbies) {
+        if (g.lobby_id == request.information.at(0)) {
+          // Step 3: Check if the lobby is full
+          if (g.isFull()) {
+            response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+            break;
+          }
+          // Step 4: Add player to lobby
+          g.join(request.player_id);
+          // Step 5: Fromate response
+          response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+          break;
+        }
+      }
+      pthread_mutex_unlock(&players_mutex);
+    } break;
   }
   return response;
 }
@@ -149,7 +287,7 @@ void *processRequest(void *arg) {
       break;
     }
 
-    printDebugStatement(isDebug, "Response Header:\n" + requestLine);
+    printDebugStatement(data->isDebug, "Response Header:\n" + requestLine);
     // Get the request action
     if (iterations == 0) {
       // Split the action by space if any
@@ -178,7 +316,7 @@ void *processRequest(void *arg) {
       } catch (...) {
         cerr << "Command not Found" << endl;
         // TODO: Finalize Invalid request
-        response = "NO\r\n"
+        response = "NO\r\n";
       }
 
       switch (command) {
@@ -203,20 +341,19 @@ void *processRequest(void *arg) {
     else if (iterations == 2) {
       if (requestLine.substr(0, 10) == "Player ID:") {
         string player_id_recv = requestLine.substr(10, requestLine.length()).c_str();
-        res.player_id = player_id_recv;
+        request.player_id = player_id_recv;
       }
     }
     else {
-      res.information.push_back(requestLine);
+      request.information.push_back(requestLine);
     }
     iterations++;
     if (iterations > 100) { break; }
   }
 
   // Get the file content based on the requested file
-  response = processRequestData(res);
-  printDebugStatement(data->isDebug)
-  cout << "Complete Response: " + response << endl;
+  response = processRequestData(request);
+  printDebugStatement(data->isDebug, "Complete Response: " + response);
 
   // Write the file and request status back to the client
   write(data->sd, &response[0], response.size());

@@ -123,9 +123,9 @@ string formatRequest(string inputAction, const int& ack, const string& player_id
       break;
     case 5:
     case 6:
-      // TODO
       // E.g. "JOIN lobby_id\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n"
-      // E.g. Response: "OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:LIST\r\nLobby ID:lobby_id\r\nLobby Name:lobby_name\r\n\r\n"
+      res = inputs.at(0) + " " + inputs.at(1) + "\r\nAck:" + to_string(ack) + "\r\nPlayer ID:" + player_id + "\r\n\r\n";
+      // E.g. Response: "OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:JOIN\r\nLobby ID:lobby_id\r\nLobby Name:lobby_name\r\n\r\n"
   }
   return res;
 }
@@ -240,7 +240,7 @@ GetUsernameReturn getValidUsername(const addrinfo* servInfo, int& ack, int isDeb
 
       // Make a create username request to server
       string request = string("CREATE_USER " + string(username) + "\r\n" + "Ack:" + to_string(ack) + "\r\n\r\n");
-      // E.g. Response "OK\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n"
+      // E.g. Response "OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:CREATE_USER\r\n"
       printDebugStatement(isDebug, "Request:\n" + request);
 
       int writeRes = write(clientSd, request.c_str(), strlen(request.c_str()));
@@ -261,6 +261,9 @@ GetUsernameReturn getValidUsername(const addrinfo* servInfo, int& ack, int isDeb
             break;
           }
           printDebugStatement(isDebug, "Response Header:\n" + responseHeader);
+          if (responseHeader.substr(0,2) == "NO") {
+            cout << "Invalid Username. Please retry." << endl;
+          }
           if (responseHeader.substr(0,2) == "OK") {
             res.username = username;
             isUsernameSet = true;
