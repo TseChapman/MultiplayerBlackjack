@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <vector>
 #include <string>
+#include "Deck.h"
 
 using namespace std;
 
@@ -27,4 +28,5 @@ private:
   const int MAX_PLAYERS = 4;
   STATUS currentStatus = READY;
   vector<string> players;
+  Deck cardDeck;
 };
