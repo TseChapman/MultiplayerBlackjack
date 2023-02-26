@@ -2,7 +2,6 @@
 
 Game::Game(string _lobby_id, string _lobby_name) {
   lobby_id = _lobby_id;
-  cardDeck = new Deck();
 }
 
 int Game::join(string player_id) {

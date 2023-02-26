@@ -36,7 +36,7 @@ struct Player {
 };
 
 unordered_map<string, Player> players;
-int player_id;
+int player_id = 0;
 pthread_mutex_t players_mutex;
 
 void printDebugStatement(bool isDebug, string statement) {
@@ -74,6 +74,7 @@ struct requestData {
   int ack;
   string player_id;
   vector<string> information;
+  int isDebug;
 };
 
 bool isLobbyNameCreated(string lobby_name) {
@@ -128,22 +129,21 @@ string processRequestData(const requestData& request) {
             for (int i = 0; i < lobbies.size(); i++) {
               if (lobbies.at(i).lobby_id == players[request.player_id].lobby_id) {
                 int status = lobbies.at(i).exit(request.player_id);
-                if (status == 0) {
-                  // TODO: fail to exit a lobby
-                }
+                printDebugStatement(request.isDebug, "PlayerID:" + request.player_id + " exit lobbyID:" + lobbies.at(i).lobby_id);
                 break;
               }
             }
           }
         }
       } catch (...) {
-
+        cerr << "Fail to exit a lobby" << endl;
       }
       // Step 2: deactive username
       try {
         players[request.player_id].status = 0;
+        printDebugStatement(request.isDebug, "PlayerID:" + request.player_id + " deactivated.");
       } catch (...) {
-
+        cerr << "Player ID:" << request.player_id << " failt to decativate" << endl;
       }
       pthread_mutex_unlock(&players_mutex);
       // TODO: Write response
@@ -151,33 +151,48 @@ string processRequestData(const requestData& request) {
     case 2: {
       try {
         pthread_mutex_lock(&players_mutex);
-        // Step 1: Search list of lobby
-        if (lobbies.empty()) {
-          // Lobbies is empty
-          string lobbyID = to_string(lobby_id);
-          Game newGame(lobbyID, request.information.at(0));
-          lobbies.push_back(newGame);
-          // Step 5: Write to client
-          response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
-          pthread_mutex_unlock(&players_mutex);
-          break;
-        }
-        // Step 2: Check if non of the lobby has the same name
-        if (!isLobbyNameCreated(request.information.at(0))) {
-          // Step 3: Add the lobby name to the list
-          // Step 4: Generate lobby id
-          string lobbyID = to_string(lobby_id);
-          Game newGame(lobbyID, request.information.at(0));
-          lobbies.push_back(newGame);
-          // Step 5: Write to client
-          response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
-          pthread_mutex_unlock(&players_mutex);
-          break;
-        } else {
+        try {
+          // Step 1: Search list of lobby
+          if (lobbies.empty()) {
+            // Lobbies is empty
+            string lobbyID = to_string(lobby_id);
+            Game newGame(lobbyID, request.information.at(0));
+            lobbies.push_back(newGame);
+            // Step 5: Write to client
+            response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
+            pthread_mutex_unlock(&players_mutex);
+            break;
+          }
+        } catch (...) {
+          cerr << "Error happened when creating a new lobby in empty lobbies" << endl;
           response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
           pthread_mutex_unlock(&players_mutex);
           break;
         }
+        try {
+          // Step 2: Check if non of the lobby has the same name
+          if (!isLobbyNameCreated(request.information.at(0))) {
+            // Step 3: Add the lobby name to the list
+            // Step 4: Generate lobby id
+            string lobbyID = to_string(lobby_id);
+            Game newGame(lobbyID, request.information.at(0));
+            lobbies.push_back(newGame);
+            // Step 5: Write to client
+            response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
+            pthread_mutex_unlock(&players_mutex);
+            break;
+          } else {
+            response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
+            pthread_mutex_unlock(&players_mutex);
+            break;
+          }
+        } catch (...) {
+          cerr << "Error happened when checking if lobby is created" << endl;
+          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
+          pthread_mutex_unlock(&players_mutex);
+          break;
+        }
+
       } catch (...) {
         response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
         break;
@@ -219,55 +234,77 @@ string processRequestData(const requestData& request) {
       //OK\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n
       Player newPlayer;
       bool isUserNameTaken = false;
-      // Step 1: Get the list of player
-      for (auto p : players) {
-        // Step 2: Check if the username is taken
-        if (p.second.player_id == request.player_id) {
-          isUserNameTaken = true;
-          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-          pthread_mutex_unlock(&players_mutex);
-          break;
+      try {
+        // Step 1: Get the list of player
+        for (auto p : players) {
+          // Step 2: Check if the username is taken
+          if (p.second.player_id == request.player_id) {
+            isUserNameTaken = true;
+            response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+            pthread_mutex_unlock(&players_mutex);
+            break;
+          }
         }
-      }
-      // Step 3: Generate player with username and new unique player id
-      if (!isUserNameTaken) {
-        newPlayer.player_id = player_id;
-        newPlayer.username = request.information.at(0);
-        newPlayer.status = 1; // Set player active
-        newPlayer.lobby_id = "";
-
-        // Step 4: Add the player to the list
-        players.insert({to_string(player_id), newPlayer});
-        // Step 5: Format response
-        response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:CREATE_USER\r\n\r\n";
-        pthread_mutex_unlock(&players_mutex);
-      }
-    } break;
-    case 6: {
-      pthread_mutex_lock(&players_mutex);
-      // Step 1: Check if the player already joined a lobby
-      if (players.at(request.player_id).lobby_id != "") {
-        // E.g. OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:JOIN\r\nLobby ID:lobby_id\r\n\r\n"
-        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+      } catch (...) {
+        cerr << "Error happpened when checking if username is taken" << endl;
+        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
         pthread_mutex_unlock(&players_mutex);
         break;
       }
-      // Step 2: Get a list of lobby
-      for (Game g : lobbies) {
-        if (g.lobby_id == request.information.at(0)) {
-          // Step 3: Check if the lobby is full
-          if (g.isFull()) {
-            response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-            break;
-          }
-          // Step 4: Add player to lobby
-          g.join(request.player_id);
-          // Step 5: Fromate response
-          response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+
+      try {
+        // Step 3: Generate player with username and new unique player id
+        if (!isUserNameTaken) {
+          newPlayer.player_id = player_id;
+          newPlayer.username = request.information.at(0);
+          newPlayer.status = 1; // Set player active
+          newPlayer.lobby_id = "";
+
+          // Step 4: Add the player to the list
+          players.insert({to_string(player_id), newPlayer});
+          // Step 5: Format response
+          response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:CREATE_USER\r\n\r\n";
+          pthread_mutex_unlock(&players_mutex);
+        }
+      } catch (...) {
+        cerr << "Error happpened when checking if username is taken" << endl;
+        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+        pthread_mutex_unlock(&players_mutex);
+        break;
+      }
+
+    } break;
+    case 6: {
+      try {
+        pthread_mutex_lock(&players_mutex);
+        // Step 1: Check if the player already joined a lobby
+        if (players.at(request.player_id).lobby_id != "") {
+          // E.g. OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:JOIN\r\nLobby ID:lobby_id\r\n\r\n"
+          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+          pthread_mutex_unlock(&players_mutex);
           break;
         }
+        // Step 2: Get a list of lobby
+        for (Game g : lobbies) {
+          if (g.lobby_id == request.information.at(0)) {
+            // Step 3: Check if the lobby is full
+            if (g.isFull()) {
+              response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+              break;
+            }
+            // Step 4: Add player to lobby
+            g.join(request.player_id);
+            players.at(request.player_id).lobby_id = g.lobby_id;
+            // Step 5: Fromate response
+            response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+            break;
+          }
+        }
+        pthread_mutex_unlock(&players_mutex);
+      } catch (...) {
+        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
+        break;
       }
-      pthread_mutex_unlock(&players_mutex);
     } break;
   }
   return response;
@@ -350,7 +387,7 @@ void *processRequest(void *arg) {
     iterations++;
     if (iterations > 100) { break; }
   }
-
+  request.isDebug = data->isDebug;
   // Get the file content based on the requested file
   response = processRequestData(request);
   printDebugStatement(data->isDebug, "Complete Response: " + response);
