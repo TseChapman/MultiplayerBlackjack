@@ -97,6 +97,7 @@ string formatRequest(string inputAction, const int& ack, const string& player_id
     case 1:
       // E.g. "EXIT\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n"
       res = inputs.at(0) + "\r\n" + "Ack:" + to_string(ack) + "\r\n" + "Player ID:" + player_id + "\r\n\r\n";
+      // E.g. Response: "OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:EXIT\r\n\r\n"
       break;
     case 2:
       try {
@@ -330,6 +331,9 @@ int main(int argc, char* argv[]) {
   string username = res.username;
 
   // Start the game
+  if (!player_id.empty() && !username.empty()) {
+    isJoined = true;
+  }
   // Start by loading a list of lobby
   try {
 
@@ -347,6 +351,9 @@ int main(int argc, char* argv[]) {
       }
 
       // Process response
+      if (res.action == "EXIT") {
+        return 0;
+      }
     }
   } catch (...) {
 

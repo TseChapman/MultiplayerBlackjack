@@ -2,6 +2,7 @@
 
 Game::Game(string _lobby_id, string _lobby_name) {
   lobby_id = _lobby_id;
+  lobby_name = _lobby_name;
 }
 
 int Game::join(string player_id) {
@@ -27,7 +28,7 @@ int Game::exit(string player_id) {
 }
 
 bool Game::isFull() {
-  return (players.size() < MAX_PLAYERS);
+  return (players.size() >= MAX_PLAYERS);
 }
 
 bool Game::isPlayerJoined(string player_id) {

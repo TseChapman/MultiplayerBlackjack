@@ -11,12 +11,16 @@ Deck::Deck() {
       cards.push_back(card);
     }
   }
-
+  cout << "Cards created" << endl;
   // Shuffle the deck
   shuffle();
+  cout << "Cards Shuffled" << endl;
 }
 
 string Deck::drawCard() {
+  if (cards.empty()) {
+    return "N/A";
+  }
   // Draw the last card from the deck
   string card = cards.at(cards.size()-1);
   cards.pop_back();
@@ -25,8 +29,8 @@ string Deck::drawCard() {
 
 void Deck::shuffle() {
   // Fisher-Yates shuffle
-  for (int i = 0; i < cards.size() - 2; i++) {
-    int j = rand() % cards.size() + i;
+  for (int i = 0; i < cards.size(); i++) {
+    int j = rand() % cards.size();
     string temp = cards.at(i);
     cards.at(i) = cards.at(j);
     cards.at(j) = temp;
