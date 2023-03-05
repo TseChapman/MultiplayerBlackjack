@@ -11,10 +11,14 @@ Deck::Deck() {
       cards.push_back(card);
     }
   }
-  cout << "Cards created" << endl;
+  //cout << "Cards created" << endl;
   // Shuffle the deck
   shuffle();
-  cout << "Cards Shuffled" << endl;
+  //cout << "Cards Shuffled" << endl;
+}
+
+Deck::Deck(const Deck& other) {
+  this->cards = other.cards;
 }
 
 string Deck::drawCard() {

@@ -5,9 +5,11 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <mutex>
 #include <netinet/in.h> // htonl, htons, inet_ntoa
 #include <netinet/tcp.h> // SO_REUSEADDR
 #include <netdb.h> // gethostbyname
+#include <pthread.h>
 #include <unistd.h> // read, write, close
 #include <unordered_map>
 #include <sstream>
@@ -38,7 +40,7 @@ struct Player {
 
 unordered_map<string, Player> players;
 int player_id = 0;
-pthread_mutex_t players_mutex;
+mutex players_mutex;
 
 void printDebugStatement(bool isDebug, string statement) {
   if (isDebug) {
@@ -114,7 +116,8 @@ string processRequestData(const requestData& request) {
     {"EXIT_GAME", 3},
     {"LIST", 4},
     {"CREATE_USER", 5},
-    {"JOIN", 6}
+    {"JOIN", 6},
+    {"GAME", 7}
   };
 
   int command;
@@ -122,14 +125,13 @@ string processRequestData(const requestData& request) {
     command = command_map[request.action];
   } catch (...) {
     cerr << "Command not Found" << endl;
-    // TODO: Finalize Invalid request
     response = "NO\r\nAck:" + to_string(request.ack) +"\r\nPlayer ID:" + request.player_id + "\r\n\r\n";
   }
 
+  unique_lock<mutex> lock(players_mutex);
   switch (command) {
     case 1: {
       // Exit the game
-      pthread_mutex_lock(&players_mutex);
       // Step 1: Exit lobby if any
       try {
         if (!players[request.player_id].lobby_id.empty()) {
@@ -155,11 +157,9 @@ string processRequestData(const requestData& request) {
         cerr << "Player ID:" << request.player_id << " failt to decativate" << endl;
       }
       response = "OK\r\nAck:"+ to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:EXIT\r\n\r\n";
-      pthread_mutex_unlock(&players_mutex);
     } break;
     case 2: {
       try {
-        pthread_mutex_lock(&players_mutex);
         try {
           // Step 1: Search list of lobby
           if (lobbies.empty()) {
@@ -168,20 +168,18 @@ string processRequestData(const requestData& request) {
             string lobbyName = request.information[0];
             //cout << "Lobby ID: " << lobbyID << ", Lobby Name: " << lobbyName << endl;
             Game newGame(lobbyID, lobbyName);
-            cout << "Create new game" << endl;
+            //cout << "Create new game" << endl;
             lobbies.push_back(newGame);
-            cout << "Add new game to vector" << endl;
+            //cout << "Add new game to vector" << endl;
             // Step 5: Write to client
-            response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
+            response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
             lobby_id++;
-            pthread_mutex_unlock(&players_mutex);
             break;
           }
         } catch (const exception& e) {
           cerr << "Error happened when creating a new lobby in empty lobbies" << endl;
           cerr << "Caught exception \"" << e.what() << "\"\n";
-          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
-          pthread_mutex_unlock(&players_mutex);
+          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_GAME\r\n\r\n";
           break;
         }
         try {
@@ -194,32 +192,28 @@ string processRequestData(const requestData& request) {
             Game newGame(lobbyID, lobbyName);
             lobbies.push_back(newGame);
             // Step 5: Write to client
-            response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
+            response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_GAME\r\nLobby ID:" + to_string(lobby_id) + "\r\n\r\n";
             lobby_id++;
-            pthread_mutex_unlock(&players_mutex);
             break;
           } else {
-            response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
-            pthread_mutex_unlock(&players_mutex);
+            response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_GAME\r\n\r\n";
             break;
           }
         } catch (...) {
           cerr << "Error happened when checking if lobby is created" << endl;
-          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
-          pthread_mutex_unlock(&players_mutex);
+          response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_GAME\r\n\r\n";
           break;
         }
 
       } catch (...) {
-        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREAT_GAME\r\n\r\n";
+        response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_GAME\r\n\r\n";
         break;
       }
     }
     case 3: {
-      pthread_mutex_lock(&players_mutex);
       try {
         // Step 1: Search for lobby with lobby_id
-        for (Game g : lobbies) {
+        for (Game& g : lobbies) {
           if (g.lobby_id == request.information.at(0)) {
             // Step 2: Check if player_id in lobby and remove player from lobby
             g.exit(request.player_id);
@@ -228,14 +222,11 @@ string processRequestData(const requestData& request) {
         // Step 3: Reset player's lobby id
         players[request.player_id].lobby_id = "";
         response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:EXIT_GAME\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-        pthread_mutex_unlock(&players_mutex);
       } catch (...) {
         response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:EXIT_GAME\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-        pthread_mutex_unlock(&players_mutex);
       }
     } break;
     case 4: {
-      pthread_mutex_lock(&players_mutex);
       response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:LIST\r\nNumber of Lobby:" + to_string(lobbies.size()) + "\r\n";
       // Step 1: Get a list of lobby
       for (Game g : lobbies) {
@@ -244,22 +235,19 @@ string processRequestData(const requestData& request) {
         response += "Lobby ID:" + g.lobby_id + "\r\nLobby Name:" + g.lobby_name + "\r\n";
       }
       response += "\r\n";
-      pthread_mutex_unlock(&players_mutex);
     } break;
     case 5: {
-      pthread_mutex_lock(&players_mutex);
       //OK\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n
       Player newPlayer;
       bool isUserNameTaken = false;
       try {
         // Step 1: Get the list of player
-        for (auto p : players) {
+        for (auto& p : players) {
           // Step 2: Check if the username is taken
           if (p.second.username == request.information.at(0)) {
             if (p.second.status == 1) {
               isUserNameTaken = true;
               response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-              pthread_mutex_unlock(&players_mutex);
               break;
             }
           }
@@ -267,7 +255,6 @@ string processRequestData(const requestData& request) {
       } catch (...) {
         cerr << "Error happpened when checking if username is taken" << endl;
         response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-        pthread_mutex_unlock(&players_mutex);
         break;
       }
 
@@ -284,52 +271,69 @@ string processRequestData(const requestData& request) {
           // Step 5: Format response
           response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ newPlayer.player_id + "\r\nAction:CREATE_USER\r\n\r\n";
           player_id++;
-          pthread_mutex_unlock(&players_mutex);
         }
       } catch (...) {
         cerr << "Error happpened when checking if username is taken" << endl;
         response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:CREATE_USER\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-        pthread_mutex_unlock(&players_mutex);
         break;
       }
 
     } break;
     case 6: {
       try {
-        pthread_mutex_lock(&players_mutex);
         // Step 1: Check if the player already joined a lobby
         if (players.at(request.player_id).lobby_id != "") {
           // E.g. OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:JOIN\r\nLobby ID:lobby_id\r\n\r\n"
-          cout << "Already Joined a lobby" << endl;
+          //cout << "Already Joined a lobby" << endl;
           response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-          pthread_mutex_unlock(&players_mutex);
           break;
         }
         // Step 2: Get a list of lobby
         // Return NO if lobby does not exist
         response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
-        for (Game g : lobbies) {
+        for (Game& g : lobbies) {
           if (g.lobby_id == request.information.at(0)) {
             // Step 3: Check if the lobby is full
             if (g.isFull()) {
-              cout << "Lobby is full" << endl;
+              //cout << "Lobby is full" << endl;
               response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
               break;
             }
             // Step 4: Add player to lobby
             g.join(request.player_id);
             players.at(request.player_id).lobby_id = g.lobby_id;
-            // Step 5: Fromate response
+            // Step 5: Format response
             response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
             break;
           }
         }
-        pthread_mutex_unlock(&players_mutex);
       } catch (const exception& e) {
         cerr << "Caught exception \"" << e.what() << "\"\n";
         response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
         break;
       }
+    } break;
+    case 7: {
+      // TODO: Game command processing response
+      // request.information[0] = action
+      // request.information[1] = "Lobby ID:lobbyId";
+      string lobbyId = "";
+      if (request.information[1].substr(0,9) == "Lobby ID:") {
+        lobbyId = request.information[1].substr(9, request.information[1].length()).c_str();
+      }
+      // Step 1: search for lobby by id
+      string res = "";
+      for (Game& g : lobbies) {
+        if (g.lobby_id == lobbyId) {
+          // Step 2: send action to lobby
+          res = g.action(request.information[0], request.player_id);
+
+          // Step 3: check response from action
+          //cout << "GAME ACTION: " << request.information[0] << endl;
+          //cout << res << endl;
+        }
+      }
+      response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:GAME\r\nLobby ID:" + lobbyId + "\r\nGame Action:" + request.information[0] + "\r\n" + res + "\r\n";
     } break;
   }
   return response;
@@ -369,7 +373,8 @@ void *processRequest(void *arg) {
         {"EXIT_GAME", 3},
         {"LIST", 4},
         {"CREATE_USER", 5},
-        {"JOIN", 6}
+        {"JOIN", 6},
+        {"GAME", 7}
       };
 
       int command;
@@ -378,7 +383,7 @@ void *processRequest(void *arg) {
       } catch (...) {
         cerr << "Command not Found" << endl;
         // TODO: Finalize Invalid request
-        response = "NO\r\n";
+        response = "NO\r\n\r\n";
       }
 
       switch (command) {
@@ -386,6 +391,7 @@ void *processRequest(void *arg) {
         case 3:
         case 5:
         case 6:
+        case 7:
           request.information.push_back(inputs.at(1));
         default:
           request.action = inputs.at(0);
@@ -421,52 +427,9 @@ void *processRequest(void *arg) {
   // Write the file and request status back to the client
   write(data->sd, &response[0], response.size());
   close(data->sd);
-}
 
-static void * serverThreadFunc(void *arg) {
-  // Define server function variables
-  struct thread_data *data = (struct thread_data*)arg; // data object
-  // TODO: Find ways to get json stringtify input
-  const int BUFSIZE = 1500;
-  char databuf[BUFSIZE]; // where nbufs * bufsize = 1500
-
-  // Save the start time
-  struct timeval start;
-  gettimeofday(&start, NULL);
-
-  // TODO: Read Client Action code
-  // read username from client
-  // While loop
-  // write username return status back to client
-  // If return status is false, read new username from client
-  // if return status is true, save username, sd in an object in a list, break the loop.
-
-  // While loop
-  // read action code from client
-  // write server action code status (yes/no)
-  /*
-  use cases:
-  1.
-  2.
-  3.
-  */
-  // Write server output
-
-  // Read client input (TODO: Transform input into object/json)
-  //read(data->sd, databuf, BUFSIZE - nRead)
-
-  // Calculate receiving time
-  struct timeval stop;
-  gettimeofday(&stop, NULL);
-  suseconds_t receiving_time = (
-    (stop.tv_sec * 1000000 + stop.tv_usec) -
-    (start.tv_sec * 1000000 + start.tv_usec)
-  );
-
-  // Return the game information json object to client
-  //write(data->sd, &count, sizeof(count));
-  cout << "data-receiving time = " << receiving_time << " usec" << endl;
-  close(data->sd);
+  cout << "Ending thread with thread id=" << to_string(data->thread_id) << endl;
+  return NULL;
 }
 
 int main(int argc, char* argv[]) {
@@ -549,4 +512,5 @@ int main(int argc, char* argv[]) {
     cerr << "Error happens in accepting client connection and creating threads." << endl;
     return -1;
   }
+  return 0;
 }

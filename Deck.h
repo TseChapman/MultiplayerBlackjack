@@ -9,6 +9,8 @@ class Deck {
 public:
   Deck();
 
+  Deck(const Deck& other);
+
   string drawCard();
 private:
   void shuffle();

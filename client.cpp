@@ -32,6 +32,7 @@ void setTimeOut(int milliseconds,std::function<void(ParamTypes...)> func,ParamTy
   });
 };
 */
+
 void printDebugStatement(bool isDebug, string statement) {
   if (isDebug) {
     cout << statement << endl;
@@ -63,7 +64,7 @@ struct ActionResponse {
   vector<string> information;
 };
 
-string formatRequest(string inputAction, const int& ack, const string& player_id) {
+string formatRequest(string inputAction, const int& ack, const string& player_id, const string& lobby_id) {
   // Get strings that is splitted by space
   vector<string> inputs;
   stringstream ss(inputAction);
@@ -80,7 +81,10 @@ string formatRequest(string inputAction, const int& ack, const string& player_id
     {"EXIT_GAME", 3},
     {"LIST", 4},
     {"CREATE_USER", 5},
-    {"JOIN", 6}
+    {"JOIN", 6},
+    {"hit", 7},
+    {"stand", 8},
+    {"updates", 9}
   };
 
   int command;
@@ -123,18 +127,26 @@ string formatRequest(string inputAction, const int& ack, const string& player_id
       // E.g. Response: "OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:LIST\r\nNumber of Lobby:x\r\nLobby ID:lobby_id\r\nLobby Name:lobby_name\r\n\r\n"
       break;
     case 5:
+      break;
     case 6:
       // E.g. "JOIN lobby_id\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n"
       res = inputs.at(0) + " " + inputs.at(1) + "\r\nAck:" + to_string(ack) + "\r\nPlayer ID:" + player_id + "\r\n\r\n";
       // E.g. Response: "OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:JOIN\r\nLobby ID:lobby_id\r\nLobby Name:lobby_name\r\n\r\n"
+      break;
+    case 7:
+    case 8:
+    case 9:
+      // E.g. "GAME action\r\nAck:ack\r\nPlayer ID:player_id\r\nLobby ID:lobby_id\r\n\r\n";
+      res = "GAME " + inputs.at(0) + "\r\nAck:" + to_string(ack) + "\r\nPlayer ID:" + player_id + "\r\nLobby ID:" + lobby_id + "\r\n\r\n";
+      break;
   }
   return res;
 }
 
-ActionResponse performAction(const addrinfo* servInfo, const string inputAction, int& ack, const string player_id, int isDebug) {
+ActionResponse performAction(const addrinfo* servInfo, const string inputAction, int& ack, const string player_id, int isDebug, string lobby_id) {
   ActionResponse res;
   // Format an action
-  string request = formatRequest(inputAction, ack, player_id);
+  string request = formatRequest(inputAction, ack, player_id, lobby_id);
 
   if (request == "") {
     cout << "Invalid action" << endl;
@@ -180,8 +192,8 @@ ActionResponse performAction(const addrinfo* servInfo, const string inputAction,
         else if (responseHeader.substr(0,2) == "NO") {
           res.status = 0;
         }
-        else if (responseHeader.substr(0, 5) == "Ack:") {
-          int ack_recv = atoi(responseHeader.substr(5, responseHeader.length()).c_str());
+        else if (responseHeader.substr(0, 4) == "Ack:") {
+          int ack_recv = atoi(responseHeader.substr(4, responseHeader.length()).c_str());
           if (ack_recv == ack) {
             ack++;
           }
@@ -294,6 +306,77 @@ GetUsernameReturn getValidUsername(const addrinfo* servInfo, int& ack, int isDeb
   return res;
 }
 
+void processActionResponse(ActionResponse response, string& lobby_id) {
+  // Based on the response, here are the informations
+  // OK or NO, store in status
+  // Ack, update in ack
+  // Player id, store in response.player_id
+  // Action, store in response.action
+  // Lobby id, store in information
+  // Game Action, store in information
+  // Number of lobby, store in information (ONLY action = LIST)
+  // Other response, store in information (TODO: Check GAME response)
+  cout << "Action: " << response.action << endl;
+  // Map of commands
+  unordered_map<string, int> command_map = {
+    {"EXIT", 1},
+    {"CREATE_GAME", 2},
+    {"EXIT_GAME", 3},
+    {"LIST", 4},
+    {"CREATE_USER", 5},
+    {"JOIN", 6},
+    {"GAME",7}
+  };
+
+  int command;
+  try {
+    command = command_map[response.action];
+  } catch (...) {
+    cerr << "Action not Found:'" << response.action << "'" << endl;
+  }
+
+  cout << "processActionResponse: command=" << to_string(command) << endl;
+  cout << "processActionResponse: response.information.size()=" << to_string(response.information.size()) << endl;
+  for (string info : response.information) {
+    cout << "Info: " << info << endl;
+  }
+
+  switch (command) {
+    case 1: {
+      cout << "Exiting Game" << endl;
+    } break;
+    case 2: {
+      cout << "Create lobby with lobby id: " << response.information[0].substr(9,response.information[0].length()).c_str() << endl;
+    } break;
+    case 3: {
+      cout << "Exit lobby with lobby id: " << response.information[0].substr(9,response.information[0].length()).c_str() << endl;
+    } break;
+    case 4: {
+      int numLobbies = stoi(response.information[0].substr(16, response.information[0].length()).c_str());
+      cout << "Number of lobbies: " << to_string(numLobbies) << endl;
+      cout << "Lobby ID\tLobby Name" << endl;
+      for (int i = 1; i < response.information.size(); i+=2) {
+        string lobbyId = response.information[i].substr(9,response.information[i].length()).c_str();
+        string lobbyName = response.information[i+1].substr(11,response.information[i+1].length()).c_str();
+        cout << lobbyId << "\t" << lobbyName << endl;
+      }
+    } break;
+    case 5: {
+
+    } break;
+    case 6: {
+      int lobbyId = stoi(response.information[0].substr(9,response.information[0].length()).c_str());
+      cout << "Joined Lobby with Lobby id: " << to_string(lobbyId) << endl;
+      lobby_id = to_string(lobbyId);
+    } break;
+    case 7: {
+      for (int i = 0; i < response.information.size(); i++) {
+        cout << response.information[i] << endl;
+      }
+    } break;
+  }
+}
+
 int main(int argc, char* argv[]) {
   // Validate parameters
   if (argc != 4) { return -1; }
@@ -329,6 +412,7 @@ int main(int argc, char* argv[]) {
   GetUsernameReturn res = getValidUsername(servInfo, ack, isDebug);
   string player_id = res.player_id;
   string username = res.username;
+  string lobby_id = "-1";
 
   // Start the game
   if (!player_id.empty() && !username.empty()) {
@@ -343,11 +427,19 @@ int main(int argc, char* argv[]) {
       cout << "Type action (Type 'HELP' for list of command): ";
       getline(cin, input);
 
-      // Perform action based on input
-      ActionResponse res = performAction(servInfo, input, ack, player_id, isDebug);
-      if (res.status == 0 || input.substr(0,4) == "HELP") {
-        // Print a list of command
+      if (input.substr(0,4) == "HELP") {
+
         continue;
+      }
+
+      // Perform action based on input
+      ActionResponse res = performAction(servInfo, input, ack, player_id, isDebug, lobby_id);
+      if (res.status == 0) {
+        continue;
+      }
+
+      if (res.status == 1) {
+        processActionResponse(res, lobby_id);
       }
 
       // Process response
