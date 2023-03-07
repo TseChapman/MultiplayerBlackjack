@@ -30,6 +30,22 @@ Game::~Game() {
 
 string Game::action(string action, string player_id) {
   unique_lock<mutex> lock(game_mutex);
+
+  if (this->currentStatus == READY) {
+    return "Game have not started yet\r\n";
+  }
+
+  if (this->currentStatus == END) {
+    string response = "";
+    response += "Game ends, below is the scores and winners:\r\n";
+    response += "Dealer's Hand:" + printHand("dealer") + " = Score: " + to_string(countScore(dealer_hand)) + ", Win:" + (this->isDealerLoss == false ? "true" : "false") + "\r\n";
+    response += "Winners:\r\n";
+    for (string playerId : this->players) {
+      response += " |Player " + playerId + ", Hands:" + printHand(playerId) + ", Score: " + to_string(countScore(this->player_hands[playerId])) + ", Win:" + (this->isLoss[playerId] == false ? "true" : "false") + "|\r\n";
+    }
+    return response;
+  }
+
   //cout << "Game::action, players.size()=" << this->players.size() << endl;
   for (string playerId : this->players) {
     //cout << "player_id=" << playerId << endl;
@@ -133,11 +149,13 @@ string Game::action(string action, string player_id) {
     // Check if dealer score exceed 21
     if (dealer_score > 21) {
       // Dealer loss, every not lost player win
+      this->isDealerLoss = true;
       this->currentStatus = END;
     }
 
     // Check if all player stand
     bool isAllStand = true;
+    bool isAllLoss = true;
     // Get player score
     for (string playerId : this->players) {
       int player_score = countScore(this->player_hands[playerId]);
@@ -150,6 +168,9 @@ string Game::action(string action, string player_id) {
 
       if (this->isStand[playerId] == false)
         isAllStand = false;
+
+      if (this->isLoss[playerId] == false)
+        isAllLoss = false;
     }
 
     if (isAllStand && this->isDealerStand) {
@@ -165,6 +186,10 @@ string Game::action(string action, string player_id) {
       this->currentStatus = END;
     }
 
+    if (isAllLoss) {
+      this->currentStatus = END;
+    }
+
 
     if (this->currentStatus != END) {
       this->currentStatus = this->nextStatus;
@@ -173,9 +198,9 @@ string Game::action(string action, string player_id) {
 
   // Return information of the game
   response += "Current turn: " + getCurrentStatus() + "\r\n";
-  response += "Dealer's Hand:" + printHand("dealer") + "\r\n";
+  response += "Dealer's Hand:" + printHand("dealer") + " = Score: " + to_string(countScore(dealer_hand)) + "\r\n";
   for (string playerId : this->players) {
-    response += "Player " + playerId + " Hands:" + printHand(playerId) + "\r\n";
+    response += "Player " + playerId + " Hands:" + printHand(playerId) + " = Score: " + to_string(countScore(this->player_hands[playerId])) + "\r\n";
   }
 
   return response;
@@ -265,12 +290,13 @@ string Game::printHand(string player_id) {
 }
 
 string Game::getCurrentStatus() {
+  unique_lock<mutex> lock(status_mutex);
   string response = "";
   if (this->currentStatus == READY) {
     response  = "READY";
   }
   else if (this->currentStatus == START) {
-    response  = "READY";
+    response  = "START";
   }
   else if (this->currentStatus == PLAYER_1_TURN) {
     response  = "PLAYER_1_TURN";

@@ -24,6 +24,8 @@ public:
 
   bool isFull();
 
+  string getCurrentStatus();
+
   string lobby_id;
   string lobby_name;
 private:
@@ -32,8 +34,6 @@ private:
   bool isPlayerJoined(string player_id);
 
   string printHand(string player_id);
-
-  string getCurrentStatus();
 
   int countScore(vector<string> hand);
 
@@ -49,12 +49,13 @@ private:
     END = 8
   };
 
-  const int MAX_PLAYERS = 1; // TODO: Change to 4 when publish
+  const int MAX_PLAYERS = 2; // TODO: Change to 4 when publish
   STATUS currentStatus = READY;
   STATUS nextStatus = READY;
 
   bool isDealerStand = false;
   vector<string> dealer_hand;
+  bool isDealerLoss = false;
   vector<string> players; // player id
   unordered_map<string, STATUS> status_map;
   unordered_map<string, bool> isStand;
@@ -63,4 +64,5 @@ private:
   Deck cardDeck;
 
   mutable mutex game_mutex;
+  mutable mutex status_mutex;
 };

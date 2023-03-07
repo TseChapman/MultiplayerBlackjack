@@ -83,7 +83,8 @@ struct requestData {
 bool isLobbyNameCreated(string lobby_name) {
   for (int i = 0; i < lobbies.size(); i++) {
     if (lobbies.at(i).lobby_name == lobby_name) {
-      return true;
+      if (lobbies.at(i).getCurrentStatus() != "READY")
+        return true;
     }
   }
   return false;
@@ -227,13 +228,19 @@ string processRequestData(const requestData& request) {
       }
     } break;
     case 4: {
-      response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:LIST\r\nNumber of Lobby:" + to_string(lobbies.size()) + "\r\n";
+      int numOpenLobby = 0;
       // Step 1: Get a list of lobby
-      for (Game g : lobbies) {
+      string res = "";
+      for (Game& g : lobbies) {
         // Step 2: Format response
-        //"OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:LIST\r\nNumber of Lobby:x\r\nLobby ID:lobby_id\r\nLobby Name:lobby_name\r\n\r\n"
-        response += "Lobby ID:" + g.lobby_id + "\r\nLobby Name:" + g.lobby_name + "\r\n";
+        if (g.getCurrentStatus() == "READY") {
+          //"OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:LIST\r\nNumber of Lobby:x\r\nLobby ID:lobby_id\r\nLobby Name:lobby_name\r\n\r\n"
+          numOpenLobby++;
+          res += "Lobby ID:" + g.lobby_id + "\r\nLobby Name:" + g.lobby_name + "\r\n";
+        }
       }
+      response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:" + request.player_id + "\r\nAction:LIST\r\nNumber of Lobby:" + to_string(numOpenLobby) + "\r\n";
+      response += res;
       response += "\r\n";
     } break;
     case 5: {
@@ -294,7 +301,7 @@ string processRequestData(const requestData& request) {
         for (Game& g : lobbies) {
           if (g.lobby_id == request.information.at(0)) {
             // Step 3: Check if the lobby is full
-            if (g.isFull()) {
+            if (g.isFull() || g.getCurrentStatus() != "READY") {
               //cout << "Lobby is full" << endl;
               response = "NO\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:JOIN\r\nLobby ID:" + request.information.at(0) + "\r\n\r\n";
               break;
@@ -314,7 +321,7 @@ string processRequestData(const requestData& request) {
       }
     } break;
     case 7: {
-      // TODO: Game command processing response
+      // Game command processing response
       // request.information[0] = action
       // request.information[1] = "Lobby ID:lobbyId";
       string lobbyId = "";
@@ -422,7 +429,7 @@ void *processRequest(void *arg) {
   request.isDebug = data->isDebug;
   // Get the file content based on the requested file
   response = processRequestData(request);
-  printDebugStatement(data->isDebug, "Complete Response: " + response);
+  printDebugStatement(data->isDebug, "Complete Response: \r\n" + response);
 
   // Write the file and request status back to the client
   write(data->sd, &response[0], response.size());

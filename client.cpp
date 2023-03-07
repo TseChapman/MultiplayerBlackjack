@@ -115,7 +115,7 @@ string formatRequest(string inputAction, const int& ack, const string& player_id
     case 3:
       try {
         // E.g. "EXIT_GAME lobby_id\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n"
-        res = inputs.at(0) + " " + inputs.at(1) + "\r\nAck:" + to_string(ack) + "\r\nPlayer ID:" + player_id + "\r\n\r\n";
+        res = inputs.at(0) + " " + lobby_id + "\r\nAck:" + to_string(ack) + "\r\nPlayer ID:" + player_id + "\r\n\r\n";
         // E.g. Response: "OK\r\nAck:ack\r\nPlayer ID:player_id\r\nAction:EXIT_GAME\r\nLobby ID:lobby_id\r\n\r\n"
       } catch (...) {
         cerr << "Invalid number of parameters for action: " + inputs.at(0) << endl;
@@ -278,6 +278,7 @@ GetUsernameReturn getValidUsername(const addrinfo* servInfo, int& ack, int isDeb
             cout << "Invalid Username. Please retry." << endl;
           }
           if (responseHeader.substr(0,2) == "OK") {
+            cout << "Successfully register user with username: " << username << endl;
             res.username = username;
             isUsernameSet = true;
           }
@@ -335,10 +336,10 @@ void processActionResponse(ActionResponse response, string& lobby_id) {
     cerr << "Action not Found:'" << response.action << "'" << endl;
   }
 
-  cout << "processActionResponse: command=" << to_string(command) << endl;
-  cout << "processActionResponse: response.information.size()=" << to_string(response.information.size()) << endl;
+  //cout << "processActionResponse: command=" << to_string(command) << endl;
+  //cout << "processActionResponse: response.information.size()=" << to_string(response.information.size()) << endl;
   for (string info : response.information) {
-    cout << "Info: " << info << endl;
+    //cout << "Info: " << info << endl;
   }
 
   switch (command) {
@@ -358,7 +359,7 @@ void processActionResponse(ActionResponse response, string& lobby_id) {
       for (int i = 1; i < response.information.size(); i+=2) {
         string lobbyId = response.information[i].substr(9,response.information[i].length()).c_str();
         string lobbyName = response.information[i+1].substr(11,response.information[i+1].length()).c_str();
-        cout << lobbyId << "\t" << lobbyName << endl;
+        cout << lobbyId << "\t\t" << lobbyName << endl;
       }
     } break;
     case 5: {
@@ -427,14 +428,29 @@ int main(int argc, char* argv[]) {
       cout << "Type action (Type 'HELP' for list of command): ";
       getline(cin, input);
 
-      if (input.substr(0,4) == "HELP") {
+      if (input.substr(0,11) == "CREATE_USER") {
+        cout << "unauthorized command" << endl;
+        continue;
+      }
 
+      if (input.substr(0,4) == "HELP") {
+        cout << "HELP List:" << endl;
+        cout << "exit game + unregister username: 'EXIT'" << endl;
+        cout << "create lobby with lobby name: 'CREATE_GAME lobby_name'" << endl;
+        cout << "exit lobby with lobby id: 'EXIT_GAME'" << endl;
+        cout << "view a list of lobby (lobby_id and lobby_name): 'LIST'" << endl;
+        cout << "join a lobby with lobby_id: 'JOIN lobby_id'" << endl;
+        cout << "Game command (hit, stand, updates):" << endl;
+        cout << "hit (draw a card, if you joined the lobby): 'hit'" << endl;
+        cout << "stand (stop drawing card, if you joined the lobby): 'stand'" << endl;
+        cout << "updates (get current state of the lobby): 'updates'" << endl;
         continue;
       }
 
       // Perform action based on input
       ActionResponse res = performAction(servInfo, input, ack, player_id, isDebug, lobby_id);
       if (res.status == 0) {
+        cout << "Invalid Action: " << input << endl;
         continue;
       }
 
