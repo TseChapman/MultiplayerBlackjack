@@ -26,6 +26,8 @@ public:
 
   string getCurrentStatus();
 
+  bool isPlayerWin(string player_id);
+
   string lobby_id;
   string lobby_name;
 private:

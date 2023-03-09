@@ -84,7 +84,8 @@ string formatRequest(string inputAction, const int& ack, const string& player_id
     {"JOIN", 6},
     {"hit", 7},
     {"stand", 8},
-    {"updates", 9}
+    {"updates", 9},
+    {"SCORE",10}
   };
 
   int command;
@@ -138,6 +139,10 @@ string formatRequest(string inputAction, const int& ack, const string& player_id
     case 9:
       // E.g. "GAME action\r\nAck:ack\r\nPlayer ID:player_id\r\nLobby ID:lobby_id\r\n\r\n";
       res = "GAME " + inputs.at(0) + "\r\nAck:" + to_string(ack) + "\r\nPlayer ID:" + player_id + "\r\nLobby ID:" + lobby_id + "\r\n\r\n";
+      break;
+    case 10:
+      // E.g. "SCORE\r\nAck:ack\r\nPlayer ID:player_id\r\n\r\n"
+      res = "SCORE\r\nAck:" + to_string(ack) + "\r\nPlayer ID:" + player_id + "\r\n\r\n";
       break;
   }
   return res;
@@ -326,7 +331,8 @@ void processActionResponse(ActionResponse response, string& lobby_id) {
     {"LIST", 4},
     {"CREATE_USER", 5},
     {"JOIN", 6},
-    {"GAME",7}
+    {"GAME",7},
+    {"SCORE",8}
   };
 
   int command;
@@ -371,6 +377,11 @@ void processActionResponse(ActionResponse response, string& lobby_id) {
       lobby_id = to_string(lobbyId);
     } break;
     case 7: {
+      for (int i = 0; i < response.information.size(); i++) {
+        cout << response.information[i] << endl;
+      }
+    } break;
+    case 8: {
       for (int i = 0; i < response.information.size(); i++) {
         cout << response.information[i] << endl;
       }

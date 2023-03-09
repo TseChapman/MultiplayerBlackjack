@@ -118,7 +118,8 @@ string processRequestData(const requestData& request) {
     {"LIST", 4},
     {"CREATE_USER", 5},
     {"JOIN", 6},
-    {"GAME", 7}
+    {"GAME", 7},
+    {"SCORE", 8}
   };
 
   int command;
@@ -342,6 +343,23 @@ string processRequestData(const requestData& request) {
       }
       response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:GAME\r\nLobby ID:" + lobbyId + "\r\nGame Action:" + request.information[0] + "\r\n" + res + "\r\n";
     } break;
+    case 8: {
+      // Response the current score board
+      unordered_map<string, int> scoreBoard;
+      for (auto& p : players) {
+        scoreBoard.insert({p.second.username,0});
+        for (Game& g : lobbies) {
+          if (g.isPlayerWin(p.first)) {
+            scoreBoard[p.second.username] += 1;
+          }
+        }
+      }
+      response = "OK\r\nAck:" + to_string(request.ack) + "\r\nPlayer ID:"+ request.player_id + "\r\nAction:SCORE\r\n";
+      for (auto& s: scoreBoard) {
+        response += "Player: " + s.first + ", Wins = " + to_string(s.second) + "\r\n";
+      }
+      response += "\r\n";
+    } break;
   }
   return response;
 }
@@ -381,7 +399,8 @@ void *processRequest(void *arg) {
         {"LIST", 4},
         {"CREATE_USER", 5},
         {"JOIN", 6},
-        {"GAME", 7}
+        {"GAME", 7},
+        {"SCORE",8}
       };
 
       int command;

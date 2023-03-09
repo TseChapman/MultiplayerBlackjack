@@ -238,13 +238,19 @@ int Game::exit(string player_id) {
         this->players.erase(this->players.begin() + i);
         this->status_map.erase(player_id);
         this->isStand.erase(player_id);
-        this->isLoss.erase(player_id);
         break;
       }
     }
     return 1; // Success on exiting player
   }
   return 0; // Fail to exit a player
+}
+
+bool Game::isPlayerWin(string player_id) {
+  unique_lock<mutex> lock(game_mutex);
+  if (this->currentStatus == END && !this->isLoss[player_id])
+    return true;
+  return false;
 }
 
 bool Game::isFull() {
