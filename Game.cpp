@@ -207,6 +207,7 @@ string Game::action(string action, string player_id) {
 }
 
 int Game::join(string player_id) {
+  // Join the lobby is the player haven't joined and the lobby is not full
   unique_lock<mutex> lock(game_mutex);
   if (this->players.size() >= MAX_PLAYERS) {
     return 0;
@@ -231,6 +232,7 @@ int Game::join(string player_id) {
 }
 
 int Game::exit(string player_id) {
+  // Exit the lobby and erase the player's record
   unique_lock<mutex> lock(game_mutex);
   if (isPlayerJoined(player_id)) {
     for (int i = 0; i < this->players.size(); i++) {
@@ -247,6 +249,7 @@ int Game::exit(string player_id) {
 }
 
 bool Game::isPlayerWin(string player_id) {
+  // Check if the player wins
   unique_lock<mutex> lock(game_mutex);
   if (this->currentStatus == END && !this->isLoss[player_id])
     return true;
@@ -254,12 +257,14 @@ bool Game::isPlayerWin(string player_id) {
 }
 
 bool Game::isFull() {
+  // check if the lobby is full
   unique_lock<mutex> lock(game_mutex);
   bool isLobbyFull = (this->players.size() >= MAX_PLAYERS);
   return isLobbyFull;
 }
 
 int Game::getPlayerIndex(string player_id) {
+  // Get the player index inside players vector
   int res = -1;
   for (int i = 0; i < this->players.size(); i++) {
     if (player_id == this->players[i]) {
@@ -271,6 +276,7 @@ int Game::getPlayerIndex(string player_id) {
 }
 
 bool Game::isPlayerJoined(string player_id) {
+  // Check if the player is joined
   //cout << "isPlayerJoined: player_id='" << player_id << "'" << endl;
   //cout << "isPlayerJoined: players.size()=" << to_string(this->players.size()) << endl;
   if (this->players.empty()) {
@@ -282,6 +288,7 @@ bool Game::isPlayerJoined(string player_id) {
 }
 
 string Game::printHand(string player_id) {
+  // return the string that represent the hand of a player
   string response = "";
   if (player_id == "dealer") {
     for (string card : this->dealer_hand) {
@@ -296,6 +303,7 @@ string Game::printHand(string player_id) {
 }
 
 string Game::getCurrentStatus() {
+  // get the status string
   unique_lock<mutex> lock(status_mutex);
   string response = "";
   if (this->currentStatus == READY) {
@@ -329,6 +337,7 @@ string Game::getCurrentStatus() {
 }
 
 int Game::countScore(vector<string> hand) {
+  // Count the score of the hand
   int cur = 0;
   int numAces = 0;
   for (string card : hand) {

@@ -1,2 +1,3 @@
 # Pass port number  and isDebug(0=false,1=true) to server.
-./Server 5456 $1
+# E.g. ./runServer.sh 5456
+./Server $1 0

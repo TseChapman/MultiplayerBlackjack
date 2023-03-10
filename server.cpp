@@ -31,6 +31,7 @@ const int MAX_CON = 10;
 vector<Game> lobbies;
 int lobby_id = 0;
 
+// Store information of a player
 struct Player {
   string player_id;
   string username;
@@ -38,16 +39,19 @@ struct Player {
   string lobby_id; // empty if not in lobby
 };
 
+// Map player_id to Player
 unordered_map<string, Player> players;
 int player_id = 0;
 mutex players_mutex;
 
 void printDebugStatement(bool isDebug, string statement) {
+  // Print if it is debug mode
   if (isDebug) {
     cout << statement << endl;
   }
 }
 
+// Thread data
 struct thread_data {
   int thread_id;
   int sd;
@@ -72,6 +76,7 @@ string parseRequestInfo(int sd) {
   return requestLine;
 }
 
+// request data from client
 struct requestData {
   string action;
   int ack;
@@ -80,6 +85,7 @@ struct requestData {
   int isDebug;
 };
 
+// Check if a lobby name is created
 bool isLobbyNameCreated(string lobby_name) {
   for (int i = 0; i < lobbies.size(); i++) {
     if (lobbies.at(i).lobby_name == lobby_name) {
@@ -90,6 +96,7 @@ bool isLobbyNameCreated(string lobby_name) {
   return false;
 }
 
+// Check if the lobby id is created
 bool isLobbyIDCreated(string lobby_id) {
   for (int i = 0; i < lobbies.size(); i++) {
     if (lobbies.at(i).lobby_id == lobby_id) {
@@ -99,7 +106,9 @@ bool isLobbyIDCreated(string lobby_id) {
   return false;
 }
 
+// Process request from client
 string processRequestData(const requestData& request) {
+  // Print request
   cout << "Request:" << endl;
   cout << "Action: " << request.action << endl;
   cout << "ACK: " << request.ack << endl;

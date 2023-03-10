@@ -57,6 +57,7 @@ string parseResponseInfo(int socket) {
   return responseLine; // return the response line
 }
 
+// the action response from server
 struct ActionResponse {
   int status;
   string player_id;
@@ -268,8 +269,6 @@ GetUsernameReturn getValidUsername(const addrinfo* servInfo, int& ack, int isDeb
         continue;
       }
 
-      // TODO: Set timer
-
       // Get Server response
       printDebugStatement(isDebug, "Request Response: ");
       try {
@@ -342,12 +341,7 @@ void processActionResponse(ActionResponse response, string& lobby_id) {
     cerr << "Action not Found:'" << response.action << "'" << endl;
   }
 
-  //cout << "processActionResponse: command=" << to_string(command) << endl;
-  //cout << "processActionResponse: response.information.size()=" << to_string(response.information.size()) << endl;
-  for (string info : response.information) {
-    //cout << "Info: " << info << endl;
-  }
-
+  // Process the action response
   switch (command) {
     case 1: {
       cout << "Exiting Game" << endl;
@@ -359,6 +353,7 @@ void processActionResponse(ActionResponse response, string& lobby_id) {
       cout << "Exit lobby with lobby id: " << response.information[0].substr(9,response.information[0].length()).c_str() << endl;
     } break;
     case 4: {
+      // List the lobbies
       int numLobbies = stoi(response.information[0].substr(16, response.information[0].length()).c_str());
       cout << "Number of lobbies: " << to_string(numLobbies) << endl;
       cout << "Lobby ID\tLobby Name" << endl;
@@ -372,16 +367,19 @@ void processActionResponse(ActionResponse response, string& lobby_id) {
 
     } break;
     case 6: {
+      // Display joining with lobby id
       int lobbyId = stoi(response.information[0].substr(9,response.information[0].length()).c_str());
       cout << "Joined Lobby with Lobby id: " << to_string(lobbyId) << endl;
       lobby_id = to_string(lobbyId);
     } break;
     case 7: {
+      // Display game action result
       for (int i = 0; i < response.information.size(); i++) {
         cout << response.information[i] << endl;
       }
     } break;
     case 8: {
+      // Display score board
       for (int i = 0; i < response.information.size(); i++) {
         cout << response.information[i] << endl;
       }
@@ -451,6 +449,7 @@ int main(int argc, char* argv[]) {
         cout << "exit lobby with lobby id: 'EXIT_GAME'" << endl;
         cout << "view a list of lobby (lobby_id and lobby_name): 'LIST'" << endl;
         cout << "join a lobby with lobby_id: 'JOIN lobby_id'" << endl;
+        cout << "get the score board: 'SCORE'" << endl;
         cout << "Game command (hit, stand, updates):" << endl;
         cout << "hit (draw a card, if you joined the lobby): 'hit'" << endl;
         cout << "stand (stop drawing card, if you joined the lobby): 'stand'" << endl;

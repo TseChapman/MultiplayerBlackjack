@@ -51,7 +51,7 @@ private:
     END = 8
   };
 
-  const int MAX_PLAYERS = 2; // TODO: Change to 4 when publish
+  const int MAX_PLAYERS = 4; // Number of player must joined before starting the game
   STATUS currentStatus = READY;
   STATUS nextStatus = READY;
 
