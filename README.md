@@ -3,6 +3,31 @@
 ## Project Documentation
 To see how to play the game please go to “Run Instruction”, command and response below is a simplified HTTP protocol that player would not run.
 
+### Run Instruction
+1.	Use `./build.sh` to build the game.
+2.	Use `./runServer.sh port#` to run the server.
+3.	Use `./runClient.sh server_name port#` to run the client.
+4.	The Client will first ask for the valid username (no space, no symbol)
+5.	Once registered a username, the client can perform the following commands:
+
+    a.	HELP, get a list of command with example
+  	
+    b.	EXIT, will the exit the game
+  	
+  	c.	CREATE_GAME lobby_name, create a lobby with lobby name “lobby_name”. Game requires 4 players to start
+
+  	d.	EXIT_GAME, exit the lobby (if joined one)
+
+  	e.	LIST, to get t a list of lobbies that are ready for player to join
+
+  	f.	JOIN lobby_id, join a lobby with specific valid lobby id, lobby id can be found by using the LIST
+
+  	g.	SCORE, view the global scoreboard
+
+  	h.	Game action: hit, stand, updates.
+
+  	i.	hit: draw a card, if it is the player’s turn
+
 ### Client
 Player uses the client as a sender to send command to the server and wait for server to response the result of the command. When the client starts, it ask the player to type a unused username. Once a valid username is assigned, player can perform by typing valid commands. 
 #### Write Client Request
@@ -73,21 +98,6 @@ This class is to store the deck in each game. The cards are represented by its n
 |-----------|----------------------------------------------|
 | drawCard  |	Draw a card from the bottom of the deck      |
 | shuffle	  | Use Fisher-Yates shuffle to shuffle the deck |
-### Run Instruction
-1.	Use ./build.sh to build the game.
-2.	Use ./runServer.sh port# to run the server.
-3.	Use ./runClient.sh server_name port# to run the client.
-4.	The Client will first ask for the valid username (no space, no symbol)
-5.	Once registered a username, the client can perform the following commands:
-a.	HELP, get a list of command with example
-b.	EXIT, will the exit the game
-c.	CREATE_GAME lobby_name, create a lobby with lobby name “lobby_name”. Game requires 4 players to start
-d.	EXIT_GAME, exit the lobby (if joined one)
-e.	LIST, to get t a list of lobbies that are ready for player to join
-f.	JOIN lobby_id, join a lobby with specific valid lobby id, lobby id can be found by using the LIST
-g.	SCORE, view the global scoreboard
-h.	Game action: hit, stand, updates.
-i.	hit: draw a card, if it is the player’s turn
 ii.	stand: stop drawing anymore card, if it is the player’s turn
 iii.	updates: get the current status of the game, *recommended to use this before making any move (hit or stand) in the game 
 6.	Once done with the game use EXIT to exit client
